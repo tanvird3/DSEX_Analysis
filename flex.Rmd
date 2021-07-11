@@ -1,0 +1,277 @@
+---
+# Set up the Environment
+title: "DSEX Analysis"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      bg: "#fff"
+      fg: "#000" 
+      primary: "#446E9B"
+      secondary: "#446E9B"
+      base_font: !expr bslib::font_google("Prompt")
+      code_font: !expr bslib::font_google("JetBrains Mono")
+      bootswatch: spacelab
+    orientation: rows
+    vertical_layout: fill
+    #social: menu
+    source_code: embed
+    navbar:
+      - { title: "GitHub", href: "https://github.com/tanvird3", align: right, icon: fa-github}
+      #- { title: "Home", href: "https://google.com", align: right, icon: fa-facebook }
+---
+
+```{r, include=FALSE}
+# Import the libraries and define the theme
+library(flexdashboard)
+library(plotly)
+#library(reticulate)
+library(readr)
+library(dplyr)
+library(shiny)
+library(shinyjs)
+library(prophet)
+# unquote the following line if the theme customization window needed
+#bslib::bs_themer()
+thematic::thematic_rmd(
+  font = "auto",
+  # To get the dark bg on the geom_raster()
+  sequential = thematic::sequential_gradient(
+    fg_low = FALSE,
+    fg_weight = 0,
+    bg_weight = 1
+  )
+)
+theme_set(theme_bw(base_size = 20))
+```
+
+Sidebar {.sidebar}
+=======================================================================
+###
+```{r}
+# The Global Sidebar
+dateRangeInput("date",
+               "Choose a Date",
+               start = Sys.Date() - 365,
+               end = Sys.Date())
+
+# The Global ActionButton
+actionButton("Generate", "Generate Plots")
+```
+```{r}
+```
+
+```{r}
+# Read the Data
+#df <- read_csv("index.csv")
+df <-
+  read_csv(
+    url(
+      "https://raw.githubusercontent.com/tanvird3/instrument_list/master/index.csv"
+    )
+  )
+
+# Prepare the required tables for plotting
+data_gen <- function(startdate, enddate) {
+  df <-
+    df %>% filter(Date >= as.Date(startdate) &
+                    Date <= as.Date(enddate))
+  
+  max_index <- max(df$Price)
+  min_index <- min(df$Price)
+  avg_index <- mean(df$Price)
+  
+  pct_var <- (max_index - min_index) / min_index * 100
+  pct_change <-
+    (df$Price[1] - df$Price[nrow(df)]) / df$Price[nrow(df)] * 100
+  
+  sum_tab <-
+    data.frame(
+      Particulars = c("Max Index", "Min Index", "Avg Index"),
+      Values = c(max_index, min_index, avg_index)
+    )
+  
+  pct_tab <-
+    data.frame(
+      Particulars = c("Max-Min", "End-Beginning"),
+      Values = c(pct_var, pct_change)
+    )
+  
+  # the DSEX Time Plot
+  index_plot <- df %>%
+    plot_ly(
+      x = ~ Date,
+      y = ~ Price,
+      type = 'scatter',
+      mode = 'lines',
+      fill = 'tozeroy'
+      #height = 600,
+      #width = 1200
+    ) %>%
+    layout(
+      title = "<br>DSEX Timeline",
+      xaxis = list(title = 'DATE'),
+      yaxis = list(title = 'INDEX VALUE')
+    )
+  
+  # Basic Descriptive Statistics Plot
+  summary_plot <- sum_tab %>%
+    plot_ly(
+      x =  ~ Particulars,
+      y =  ~ Values,
+      type = "bar",
+      name = "Index Movement",
+      marker = list(color = "#009E73")
+    ) %>%
+    layout(title = "<br>Movement of Index")
+  
+  # Growth Over the Period Plot
+  growth_plot <- pct_tab %>%
+    plot_ly(
+      x =  ~ Particulars,
+      y =  ~ Values,
+      type = "bar",
+      name = "Index Change",
+      marker = list(color = "#FF6692")
+    ) %>%
+    layout(title = "<br>% Change of Index")
+  
+  # Forecast with Prophet Method
+  # keep only the required columns
+  df_mod <- df %>% select(Date, Price)
+  
+  # rename the columns as per requirements
+  names(df_mod) <- c("ds", "y")
+  
+  # fit the model
+  model_fit <- prophet(df_mod, seasonality.mode = "additive")
+  future_get <- make_future_dataframe(model_fit, periods = 68)
+  future_get <-
+    future_get %>% mutate(wd = weekdays(ds)) %>% filter(!wd %in% c("Friday", "Saturday")) %>% select(-wd)
+  forecast_get <-
+    predict(model_fit, future_get) %>% select(ds, yhat, yhat_lower, yhat_upper)
+  
+  # Prepare data fro plotting 
+  df_dt <- df %>% select(Date, Price)
+  names(df_dt)[1] <- "ds"
+  df_dt <- df_dt %>% mutate(ds = as.Date(ds, format = "%Y-%m-%d"))
+  df_plot <- df_dt %>% full_join(forecast_get, by = "ds") %>% arrange(desc(ds)) %>% slice_head(n = 100)
+  
+  # Plot the forecasts along with original data
+  pplot <- plot_ly(df_plot,
+                   x = ~ ds) %>%
+    
+    add_trace(
+      y = ~ yhat_upper,
+      name = "Upper Band",
+      type = "scatter",
+      mode = "lines",
+      line = list(dash = "dot", color = "#B82E2E"),
+      showlegend = F
+    ) %>% add_trace(
+      y = ~ yhat_lower,
+      name = "Lower Band",
+      type = "scatter",
+      mode = "lines",
+      line = list(dash = "dot", color = "#990099"),
+      fill = "tonexty",
+      fillcolor = "rgba(0,100,80,0.2)",
+      showlegend = F
+    ) %>%
+    
+    add_trace(
+      y = ~ yhat,
+      name = "Forecasted Price",
+      type = "scatter",
+      mode = "lines",
+      line = list(color = "#109618")
+    ) %>%
+    
+    add_trace(
+      y = ~ Price,
+      type = "scatter",
+      mode = "lines",
+      name = "Actual Index",
+      line = list(color = "blue")
+    ) %>%
+    
+    layout(
+      title = "DSEX Forecast",
+      xaxis = list(title = "Date"),
+      yaxis = list(title = "DSEX"),
+      margin = list(t = 120),
+          legend = list(
+            orientation = "h",
+            x = 0,
+            y = 1.4
+          )
+        )
+  
+  # The return series of plots
+  return(
+    list(
+      index_plot = index_plot,
+      summary_plot = summary_plot,
+      growth_plot = growth_plot,
+      forecast_plot = pplot
+    )
+  )
+}
+
+# Generate the Output 
+output_get <-
+  eventReactive(input$Generate, {
+    data_gen(input$date[1], input$date[2])
+  }, ignoreNULL = F)
+```
+
+<!-- # This is the First Tab -->
+Analysis
+=======================================================================
+
+<!-- # Rows of the Tab -->
+Row
+-----------------------------------------------------------------------
+```{r}
+Index_Plot <- renderPlotly(output_get()$index_plot)
+Index_Plot
+```
+```{r}
+```
+Row
+-----------------------------------------------------------------------
+```{r}
+Summary_Plot <- renderPlotly(output_get()$summary_plot)
+Summary_Plot
+```
+```{r}
+Growth_Plot <- renderPlotly(output_get()$growth_plot)
+Growth_Plot
+```
+
+<!-- # Second Tab -->
+Forecast
+=======================================================================
+
+```{r}
+Forecast_Plot <- renderPlotly(output_get()$forecast_plot)
+Forecast_Plot
+```
+
+# ```{r}
+# lapply(c(
+#     "Index_Plot",
+#     "Summary_Plot",
+#     "Growth_Plot",
+#     "Forecast_Plot"
+#   ), function(x)
+#     outputOptions(output, x, suspendWhenHidden = F))
+# ```
+
+
+
+
+
+
+
+
