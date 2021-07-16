@@ -1,6 +1,6 @@
 ---
 # Set up the Environment
-title: "DSEX Analysis"
+title: "DSE Indices"
 runtime: shiny
 output: 
   flexdashboard::flex_dashboard:
@@ -57,15 +57,20 @@ Sidebar {.sidebar}
 =======================================================================
 ###
 ```{r}
-# The Global Sidebar
-# dateRangeInput("date",
-#                "Choose a Date",
-#                start = Sys.Date() - 365,
-#                end = Sys.Date())
-dateRangeInput("date",
-               "Choose a Date",
-               start = Sys.Date() - 365,
-               end = Sys.Date())
+selectInput(
+  inputId = "index",
+  label = "Select Index",
+  choices =
+    c("DSE Broad", "DSE 30", "DSEX Shariah"),
+  selected = "DSE Broad"
+)
+
+dateRangeInput(
+  inputId = "date",
+  label = "Choose a Date",
+  start = Sys.Date() - 364,
+  end = Sys.Date()
+)
 
 # The Global ActionButton
 actionButton("Generate", "Generate Plots")
@@ -75,14 +80,13 @@ actionButton("Generate", "Generate Plots")
 
 ```{r}
 # Prepare the required tables for plotting
-data_gen <- function(startdate, enddate) {
-  
+data_gen <- function(startdate, enddate, index) {
   source_python("index.py")
   
   startdate <- format(startdate, "%d/%m/%Y")
   enddate <- format(enddate, "%d/%m/%Y")
   
-  df <- index_hist(startdate, enddate)
+  df <- index_hist(startdate, enddate, index)
   df <- df %>% mutate(Date = as.Date(Date, format = "%Y-%m-%d"))
   
   max_index <- max(df$Close)
@@ -110,14 +114,14 @@ data_gen <- function(startdate, enddate) {
     plot_ly(
       x = ~ Date,
       y = ~ Close,
-      type = 'scatter',
-      mode = 'lines',
-      fill = 'tozeroy'
+      type = "scatter",
+      mode = "lines",
+      fill = "tozeroy"
     ) %>%
     layout(
-      title = "<br>DSEX Timeline",
-      xaxis = list(title = 'DATE'),
-      yaxis = list(title = 'INDEX VALUE')
+      title = paste("<br>", index, "Timeline"),
+      xaxis = list(title = "DATE"),
+      yaxis = list(title = "INDEX VALUE")
     )
   
   # Basic Descriptive Statistics Plot
@@ -129,7 +133,7 @@ data_gen <- function(startdate, enddate) {
       name = "Index Movement",
       marker = list(color = "#009E73")
     ) %>%
-    layout(title = "<br>Movement of Index")
+    layout(title = paste("<br>", "Movement of", index))
   
   # Growth Over the Period Plot
   growth_plot <- pct_tab %>%
@@ -140,7 +144,7 @@ data_gen <- function(startdate, enddate) {
       name = "Index Change",
       marker = list(color = "#FF6692")
     ) %>%
-    layout(title = "<br>% Change of Index")
+    layout(title = paste("<br>", "% Change of", index))
   
   # Forecast with Prophet Method
   # keep only the required columns
@@ -151,7 +155,7 @@ data_gen <- function(startdate, enddate) {
   
   # fit the model
   model_fit <- prophet(df_mod, seasonality.mode = "additive")
-  future_get <- make_future_dataframe(model_fit, periods = 68)
+  future_get <- make_future_dataframe(model_fit, periods = 64)
   future_get <-
     future_get %>% mutate(wd = weekdays(ds)) %>% filter(!wd %in% c("Friday", "Saturday")) %>% select(-wd)
   forecast_get <-
@@ -203,7 +207,7 @@ data_gen <- function(startdate, enddate) {
     ) %>%
     
     layout(
-      title = "DSEX Forecast",
+      title = paste(index, "Forecast"),
       xaxis = list(title = "Date"),
       yaxis = list(title = "DSEX"),
       margin = list(t = 120),
@@ -228,7 +232,7 @@ data_gen <- function(startdate, enddate) {
 # Generate the Output
 output_get <-
   eventReactive(input$Generate, {
-    data_gen(input$date[1], input$date[2])
+    data_gen(input$date[1], input$date[2], input$index)
   }, ignoreNULL = F)
 ```
 
@@ -264,10 +268,3 @@ Forecast
 Forecast_Plot <- renderPlotly(output_get()$forecast_plot)
 Forecast_Plot
 ```
-
-
-
-
-
-
-
