@@ -10,6 +10,7 @@ my_packages <-
     "plotly",
     "shiny",
     "shinyjs",
+    "reticulate", 
     "flexdashboard",
     "prophet")
 #my_packages = c("package_name_1", "package_name_2", ...)

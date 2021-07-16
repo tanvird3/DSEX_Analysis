@@ -21,16 +21,16 @@ output:
       #- { title: "Home", href: "https://google.com", align: right, icon: fa-facebook }
 ---
 
-```{r, include=FALSE}
+```{r, include = FALSE}
 # Import the libraries and define the theme
 library(flexdashboard)
 library(plotly)
-#library(reticulate)
 library(readr)
 library(dplyr)
 library(shiny)
 library(shinyjs)
 library(prophet)
+library(reticulate)
 # unquote the following line if the theme customization window needed
 #bslib::bs_themer()
 thematic::thematic_rmd(
@@ -44,12 +44,24 @@ thematic::thematic_rmd(
 )
 theme_set(theme_bw(base_size = 20))
 ```
+```{r, include = FALSE}
+# load the virtual env
+reticulate::virtualenv_create("python35_env", python = "python3")
+reticulate::virtualenv_install("python35_env",
+                               packages = c("investpy"),
+                               ignore_installed = T)
+reticulate::use_virtualenv("python35_env", required = TRUE)
+```
 
 Sidebar {.sidebar}
 =======================================================================
 ###
 ```{r}
 # The Global Sidebar
+# dateRangeInput("date",
+#                "Choose a Date",
+#                start = Sys.Date() - 365,
+#                end = Sys.Date())
 dateRangeInput("date",
                "Choose a Date",
                start = Sys.Date() - 365,
@@ -62,28 +74,24 @@ actionButton("Generate", "Generate Plots")
 ```
 
 ```{r}
-# Read the Data
-#df <- read_csv("index.csv")
-df <-
-  read_csv(
-    url(
-      "https://raw.githubusercontent.com/tanvird3/instrument_list/master/index.csv"
-    )
-  )
-
 # Prepare the required tables for plotting
 data_gen <- function(startdate, enddate) {
-  df <-
-    df %>% filter(Date >= as.Date(startdate) &
-                    Date <= as.Date(enddate))
   
-  max_index <- max(df$Price)
-  min_index <- min(df$Price)
-  avg_index <- mean(df$Price)
+  source_python("index.py")
+  
+  startdate <- format(startdate, "%d/%m/%Y")
+  enddate <- format(enddate, "%d/%m/%Y")
+  
+  df <- index_hist(startdate, enddate)
+  df <- df %>% mutate(Date = as.Date(Date, format = "%Y-%m-%d"))
+  
+  max_index <- max(df$Close)
+  min_index <- min(df$Close)
+  avg_index <- mean(df$Close)
   
   pct_var <- (max_index - min_index) / min_index * 100
   pct_change <-
-    (df$Price[1] - df$Price[nrow(df)]) / df$Price[nrow(df)] * 100
+    (df$Close[1] - df$Close[nrow(df)]) / df$Close[nrow(df)] * 100
   
   sum_tab <-
     data.frame(
@@ -101,12 +109,10 @@ data_gen <- function(startdate, enddate) {
   index_plot <- df %>%
     plot_ly(
       x = ~ Date,
-      y = ~ Price,
+      y = ~ Close,
       type = 'scatter',
       mode = 'lines',
       fill = 'tozeroy'
-      #height = 600,
-      #width = 1200
     ) %>%
     layout(
       title = "<br>DSEX Timeline",
@@ -138,7 +144,7 @@ data_gen <- function(startdate, enddate) {
   
   # Forecast with Prophet Method
   # keep only the required columns
-  df_mod <- df %>% select(Date, Price)
+  df_mod <- df %>% select(Date, Close)
   
   # rename the columns as per requirements
   names(df_mod) <- c("ds", "y")
@@ -151,11 +157,12 @@ data_gen <- function(startdate, enddate) {
   forecast_get <-
     predict(model_fit, future_get) %>% select(ds, yhat, yhat_lower, yhat_upper)
   
-  # Prepare data fro plotting 
-  df_dt <- df %>% select(Date, Price)
+  # Prepare data fro plotting
+  df_dt <- df %>% select(Date, Close)
   names(df_dt)[1] <- "ds"
   df_dt <- df_dt %>% mutate(ds = as.Date(ds, format = "%Y-%m-%d"))
-  df_plot <- df_dt %>% full_join(forecast_get, by = "ds") %>% arrange(desc(ds)) %>% slice_head(n = 100)
+  df_plot <-
+    df_dt %>% full_join(forecast_get, by = "ds") %>% arrange(desc(ds)) %>% slice_head(n = 100)
   
   # Plot the forecasts along with original data
   pplot <- plot_ly(df_plot,
@@ -181,14 +188,14 @@ data_gen <- function(startdate, enddate) {
     
     add_trace(
       y = ~ yhat,
-      name = "Forecasted Price",
+      name = "Forecasted Close",
       type = "scatter",
       mode = "lines",
       line = list(color = "#109618")
     ) %>%
     
     add_trace(
-      y = ~ Price,
+      y = ~ Close,
       type = "scatter",
       mode = "lines",
       name = "Actual Index",
@@ -200,12 +207,12 @@ data_gen <- function(startdate, enddate) {
       xaxis = list(title = "Date"),
       yaxis = list(title = "DSEX"),
       margin = list(t = 120),
-          legend = list(
-            orientation = "h",
-            x = 0,
-            y = 1.4
-          )
-        )
+      legend = list(
+        orientation = "h",
+        x = 0,
+        y = 1.4
+      )
+    )
   
   # The return series of plots
   return(
@@ -218,7 +225,7 @@ data_gen <- function(startdate, enddate) {
   )
 }
 
-# Generate the Output 
+# Generate the Output
 output_get <-
   eventReactive(input$Generate, {
     data_gen(input$date[1], input$date[2])
@@ -257,17 +264,6 @@ Forecast
 Forecast_Plot <- renderPlotly(output_get()$forecast_plot)
 Forecast_Plot
 ```
-
-# ```{r}
-# lapply(c(
-#     "Index_Plot",
-#     "Summary_Plot",
-#     "Growth_Plot",
-#     "Forecast_Plot"
-#   ), function(x)
-#     outputOptions(output, x, suspendWhenHidden = F))
-# ```
-
 
 
 
