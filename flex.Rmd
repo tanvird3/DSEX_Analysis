@@ -89,6 +89,11 @@ data_gen <- function(startdate, enddate, index) {
   df <- index_hist(startdate, enddate, index)
   df <- df %>% mutate(Date = as.Date(Date, format = "%Y-%m-%d"))
   
+  # create return series
+  df <- df %>% mutate(Return = c((diff(Close) * -1) /Close[-1], 0))
+  # Color setting related to values of Return 
+  df <- df %>% mutate(Color = if_else(Return >= 0, "#109618", "#D62728"))
+  
   max_index <- max(df$Close)
   min_index <- min(df$Close)
   avg_index <- mean(df$Close)
@@ -110,19 +115,35 @@ data_gen <- function(startdate, enddate, index) {
     )
   
   # the DSEX Time Plot
-  index_plot <- df %>%
+  time_plot <- df %>%
     plot_ly(
       x = ~ Date,
       y = ~ Close,
+      name = index, 
       type = "scatter",
       mode = "lines",
-      fill = "tozeroy"
+      fill = "tozeroy",
+      showlegend = F
     ) %>%
     layout(
       title = paste("<br>", index, "Timeline"),
       xaxis = list(title = "DATE"),
       yaxis = list(title = "INDEX VALUE")
     )
+  
+  # Return Series Plot
+  return_plot <- df %>% 
+    plot_ly(
+      x = ~ Date,
+      y = ~ Return,
+      name = "Return", 
+      type = "bar", 
+      showlegend = F, 
+      marker = list(color = ~ Color)
+    )
+  
+  # combine the plots
+  index_plot <- subplot(time_plot, return_plot, nrows = 2, shareX = TRUE)
   
   # Basic Descriptive Statistics Plot
   summary_plot <- sum_tab %>%
