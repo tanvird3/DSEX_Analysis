@@ -93,6 +93,7 @@ data_gen <- function(startdate, enddate, index) {
   df <- df %>% mutate(Return = c((diff(Close) * -1) /Close[-1], 0))
   # Color setting related to values of Return 
   df <- df %>% mutate(Color = if_else(Return >= 0, "#109618", "#D62728"))
+  df <- df %>% mutate(WinLose = if_else(Return >= 0, "Winning Days", "Losing Days"))
   
   max_index <- max(df$Close)
   min_index <- min(df$Close)
@@ -101,6 +102,7 @@ data_gen <- function(startdate, enddate, index) {
   pct_var <- (max_index - min_index) / min_index * 100
   pct_change <-
     (df$Close[1] - df$Close[nrow(df)]) / df$Close[nrow(df)] * 100
+  
   
   sum_tab <-
     data.frame(
@@ -113,6 +115,9 @@ data_gen <- function(startdate, enddate, index) {
       Particulars = c("Max-Min", "End-Beginning"),
       Values = c(pct_var, pct_change)
     )
+  
+  winlose_tab <-
+    df %>% group_by(WinLose) %>% summarise(Day_Count = n())
   
   # the DSEX Time Plot
   time_plot <- df %>%
@@ -152,7 +157,7 @@ data_gen <- function(startdate, enddate, index) {
       y =  ~ Values,
       type = "bar",
       name = "Index Movement",
-      marker = list(color = "#009E73")
+      marker = list(color = "#A777F1")
     ) %>%
     layout(title = paste("<br>", "Movement of", index))
   
@@ -166,6 +171,16 @@ data_gen <- function(startdate, enddate, index) {
       marker = list(color = "#FF6692")
     ) %>%
     layout(title = paste("<br>", "% Change of", index))
+  
+  # Win Lose Day Count Plot
+  winlose_plot <-
+    winlose_tab %>% plot_ly(
+      labels = ~ WinLose,
+      values = ~ Day_Count,
+      type = "pie",
+      showlegend = F
+    ) %>%
+    layout(title = paste("<br>", index, "Count of W/L Days"))
   
   # Forecast with Prophet Method
   # keep only the required columns
@@ -245,6 +260,7 @@ data_gen <- function(startdate, enddate, index) {
       index_plot = index_plot,
       summary_plot = summary_plot,
       growth_plot = growth_plot,
+      winlose_plot = winlose_plot, 
       forecast_plot = pplot
     )
   )
@@ -279,6 +295,10 @@ Summary_Plot
 ```{r}
 Growth_Plot <- renderPlotly(output_get()$growth_plot)
 Growth_Plot
+```
+```{r}
+winlose_plot <- renderPlotly(output_get()$winlose_plot)
+winlose_plot
 ```
 
 <!-- # Second Tab -->
