@@ -129,26 +129,36 @@ data_gen <- function(startdate, enddate, index) {
       mode = "lines",
       fill = "tozeroy",
       showlegend = F
-    ) %>%
-    layout(
-      title = paste("<br>", index, "Timeline"),
-      xaxis = list(title = "DATE"),
-      yaxis = list(title = "INDEX VALUE")
     )
   
   # Return Series Plot
-  return_plot <- df %>% 
+  return_plot <- df %>%
     plot_ly(
       x = ~ Date,
       y = ~ Return,
-      name = "Return", 
-      type = "bar", 
-      showlegend = F, 
+      name = "Return",
+      type = "bar",
+      showlegend = F,
       marker = list(color = ~ Color)
-    )
+    ) 
   
   # combine the plots
-  index_plot <- subplot(time_plot, return_plot, nrows = 2, shareX = TRUE)
+  index_plot <-
+    subplot(
+      time_plot,
+      return_plot,
+      nrows = 2,
+      shareX = TRUE,
+      shareY = FALSE,
+      which_layout = "merge"
+    ) %>%
+    layout(
+      title = paste("<br>Timeline of", index, "Index"),
+      xaxis = list(title = ""),
+      xaxis2 = list(title = ""),
+      yaxis = list(title = "Index Value"),
+      yaxis2 = list(title = "% Return")
+    )
   
   # Basic Descriptive Statistics Plot
   summary_plot <- sum_tab %>%
@@ -159,7 +169,8 @@ data_gen <- function(startdate, enddate, index) {
       name = "Index Movement",
       marker = list(color = "#A777F1")
     ) %>%
-    layout(title = paste("<br>", "Movement of", index))
+    layout(title = paste("<br>", "Movement of", index),
+           xaxis = list(title = ""))
   
   # Growth Over the Period Plot
   growth_plot <- pct_tab %>%
@@ -170,7 +181,8 @@ data_gen <- function(startdate, enddate, index) {
       name = "Index Change",
       marker = list(color = "#FF6692")
     ) %>%
-    layout(title = paste("<br>", "% Change of", index))
+    layout(title = paste("<br>", "% Change of", index),
+           xaxis = list(title = ""))
   
   # Win Lose Day Count Plot
   winlose_plot <-
@@ -228,7 +240,7 @@ data_gen <- function(startdate, enddate, index) {
     
     add_trace(
       y = ~ yhat,
-      name = "Forecasted Close",
+      name = "Forecasted Index",
       type = "scatter",
       mode = "lines",
       line = list(color = "#109618")
