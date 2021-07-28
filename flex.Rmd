@@ -170,7 +170,8 @@ data_gen <- function(startdate, enddate, index) {
       marker = list(color = "#A777F1")
     ) %>%
     layout(title = paste("<br>", "Movement of", index),
-           xaxis = list(title = ""))
+           xaxis = list(title = ""),
+           yaxis = list(title = ""))
   
   # Growth Over the Period Plot
   growth_plot <- pct_tab %>%
@@ -182,7 +183,8 @@ data_gen <- function(startdate, enddate, index) {
       marker = list(color = "#FF6692")
     ) %>%
     layout(title = paste("<br>", "% Change of", index),
-           xaxis = list(title = ""))
+           xaxis = list(title = ""),
+           yaxis = list(title = ""))
   
   # Win Lose Day Count Plot
   winlose_plot <-
