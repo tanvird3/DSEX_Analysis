@@ -258,8 +258,8 @@ data_gen <- function(startdate, enddate, index) {
     
     layout(
       title = paste(index, "Forecast"),
-      xaxis = list(title = "Date"),
-      yaxis = list(title = "DSEX"),
+      xaxis = list(title = ""),
+      yaxis = list(title = ""),
       margin = list(t = 120),
       legend = list(
         orientation = "h",
